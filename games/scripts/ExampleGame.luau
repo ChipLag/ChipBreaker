@@ -5,17 +5,17 @@ local module = Games:CreateModule("Example Game", "games/scripts/ExampleGame.lua
 
 module:AddSectionHeader("Auto Farm")
 module:AddToggle("Auto Collect", "C", function(enabled)
-end, true)
+end)
 
 module:AddToggle("Auto Sell", "S", function(enabled)
-end, true)
+end)
 
 module:AddSectionHeader("Combat")
 module:AddToggle("Auto Attack", "A", function(enabled)
-end, true)
+end)
 
 module:AddToggle("Auto Dodge", "D", function(enabled)
-end, true)
+end)
 
 module:AddSectionHeader("Settings")
 module:AddSlider("Reach Range", 10, 100, 50, function(value)
@@ -23,6 +23,6 @@ end)
 
 module:AddLabel("")
 module:AddButton("Teleport to Farm", function()
-end, true)
+end)
 
 return module

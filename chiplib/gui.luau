@@ -46,6 +46,9 @@ local state = {
 	keybindContexts   = {},         -- contextId -> { bindings }
 	androidButtons    = {},         -- list of android button objects
 	androidButtonQueue = {},        -- queued button descriptions
+	queuedButtonMap    = {},         -- "context_id" -> queue entry for lookup
+	floatingEnabled    = {},         -- "context_id" -> boolean per-element state
+	globalFloatingEnabled = false,   -- global "Show Floating Buttons" toggle state
 	keybindBadges     = {},         -- {badge, context} for toggle visibility
 	isAndroid         = false,
 	initialized       = false,
@@ -359,7 +362,7 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 		stroke(btnFrame, theme.accent, 1),
 	})
 	local sizeConstraint = Instance.new("UISizeConstraint")
-	sizeConstraint.MinSize = Vector2.new(60, 44)
+	sizeConstraint.MinSize = Vector2.new(90, 44)
 	sizeConstraint.Parent = btnFrame
 	btnFrame.Parent = state.screenGui
 
@@ -476,9 +479,9 @@ function ChipGui:RemoveContextButtons(contextId)
 	end
 end
 
---- Queue an Android button description (created later when floating buttons are enabled).
+--- Queue an Android button description.
 function ChipGui:QueueAndroidButton(context, id, label, x, y, onClick, onGetState)
-	table.insert(state.androidButtonQueue, {
+	local entry = {
 		context = context,
 		id = id,
 		label = label,
@@ -486,16 +489,75 @@ function ChipGui:QueueAndroidButton(context, id, label, x, y, onClick, onGetStat
 		y = y,
 		onClick = onClick,
 		onGetState = onGetState,
-	})
+	}
+	table.insert(state.androidButtonQueue, entry)
+	state.queuedButtonMap[context .. "_" .. id] = entry
 end
 
---- Create all queued Android buttons.
+--- Create a single floating button from its queued description.
+function ChipGui:CreateSingleFloatingButton(context, id)
+	local key = context .. "_" .. id
+	local entry = state.queuedButtonMap[key]
+	if not entry then return nil end
+	return self:CreateAndroidButton(entry.context, entry.id, entry.label, entry.x, entry.y, entry.onClick, entry.onGetState)
+end
+
+--- Destroy a single floating button by context+id.
+function ChipGui:DestroySingleFloatingButton(context, id)
+	local uid = context .. "_" .. id
+	for i = #state.androidButtons, 1, -1 do
+		local btn = state.androidButtons[i]
+		if btn.uid == uid then
+			btn:Destroy()
+			table.remove(state.androidButtons, i)
+			return
+		end
+	end
+end
+
+--- Get or set the per-element floating button state.
+function ChipGui:SetElementFloatingEnabled(context, id, enabled)
+	local key = context .. "_" .. id
+	state.floatingEnabled[key] = enabled
+	if state.globalFloatingEnabled then
+		if enabled then
+			self:CreateSingleFloatingButton(context, id)
+		else
+			self:DestroySingleFloatingButton(context, id)
+		end
+	end
+end
+
+function ChipGui:IsElementFloatingEnabled(context, id)
+	return state.floatingEnabled[context .. "_" .. id] or false
+end
+
+--- Set the global "Show Floating Buttons" state.
+function ChipGui:SetGlobalFloatingEnabled(enabled)
+	state.globalFloatingEnabled = enabled
+	if enabled then
+		for key, entry in pairs(state.queuedButtonMap) do
+			if state.floatingEnabled[key] then
+				self:CreateSingleFloatingButton(entry.context, entry.id)
+			end
+		end
+		self:SetKeybindBadgesVisible(false)
+	else
+		self:RemoveAllFloatingButtons()
+		self:SetKeybindBadgesVisible(true)
+	end
+end
+
+--- Create all queued Android buttons (legacy, respects per-element state).
 function ChipGui:FlushAndroidButtonQueue()
 	for _, btn in ipairs(state.androidButtonQueue) do
-		self:CreateAndroidButton(
-			btn.context, btn.id, btn.label,
-			btn.x, btn.y, btn.onClick, btn.onGetState
-		)
+		local key = btn.context .. "_" .. btn.id
+		if state.floatingEnabled[key] then
+			self:CreateAndroidButton(
+				btn.context, btn.id, btn.label,
+				btn.x, btn.y, btn.onClick, btn.onGetState
+			)
+		end
 	end
 end
 
@@ -523,8 +585,10 @@ end
 --- @param defaultState boolean
 --- @param onChange function(enabled)
 --- @param keybind string|nil - optional default key
+--- @param androidCtx string|nil - android button context for floating toggle
+--- @param androidId string|nil - android button ID for floating toggle
 --- @return table - control object
-local function createToggle(parent, label, defaultState, onChange, keybind)
+local function createToggle(parent, label, defaultState, onChange, keybind, androidCtx, androidId)
 	local frame = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 32),
 		BackgroundTransparency = 1,
@@ -573,21 +637,40 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 	})
 	labelObj.Parent = frame
 
-	local keybindBtn = nil
-	local keybindControl = nil
+	local isOn = defaultState or false
 
-	local function updateKeybindBadge(key)
-		if not keybindBtn then return end
-		if key and key ~= "" then
-			keybindBtn.Visible = true
-			keybindBtn.Text = "[" .. key .. "]"
-		else
-			keybindBtn.Visible = false
-		end
-	end
+	-- Floating toggle (Android) or keybind badge (desktop)
+	if state.isAndroid and androidCtx and androidId then
+		local floatEnabled = ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+		local floatToggle = create("Frame", {
+			Size = UDim2.new(0, 20, 0, 20),
+			Position = UDim2.new(1, -6, 0.5, -10),
+			AnchorPoint = Vector2.new(1, 0.5),
+			BackgroundColor3 = floatEnabled and theme.accent or theme.checkboxOff,
+			BorderSizePixel = 0,
+		}, {
+			corner(floatToggle, 4),
+		})
+		floatToggle.Parent = frame
 
-	if keybind then
-		keybindBtn = create("TextButton", {
+		local floatBtn = create("TextButton", {
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Text = "",
+		})
+		floatBtn.Parent = floatToggle
+
+		floatBtn.MouseButton1Click:Connect(function()
+			local newState = not ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+			ChipGui:SetElementFloatingEnabled(androidCtx, androidId, newState)
+			floatToggle.BackgroundColor3 = newState and theme.accent or theme.checkboxOff
+		end)
+	elseif keybind then
+		local keybindControl = ChipGui:RegisterKeybind(label, keybind, "toggle", function()
+			control:Toggle()
+		end)
+
+		local keybindBtn = create("TextButton", {
 			Size = UDim2.new(0, 0, 0, 24),
 			Position = UDim2.new(1, -6, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
@@ -625,7 +708,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 					local keyName = inp.KeyCode.Name
 					if keyName and keyName ~= "Unknown" then
 						keybindControl:SetKey(keyName)
-						updateKeybindBadge(keyName)
+						keybindBtn.Text = "[" .. keyName .. "]"
 						keybindBtn.BackgroundColor3 = theme.keybindBg
 						keybindBtn.TextColor3 = theme.textDim
 						listening = false
@@ -636,7 +719,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 					or inp.UserInputType == Enum.UserInputType.MouseButton2 then
 					keybindBtn.BackgroundColor3 = theme.keybindBg
 					keybindBtn.TextColor3 = theme.textDim
-					updateKeybindBadge(keybindControl:GetKey())
+					keybindBtn.Text = "[" .. keybindControl:GetKey() .. "]"
 					listening = false
 					rebindCon:Disconnect()
 					if rebindEndCon then rebindEndCon:Disconnect() end
@@ -648,7 +731,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 				if inp.KeyCode == Enum.KeyCode.Escape and listening then
 					keybindBtn.BackgroundColor3 = theme.keybindBg
 					keybindBtn.TextColor3 = theme.textDim
-					updateKeybindBadge(keybindControl:GetKey())
+					keybindBtn.Text = "[" .. keybindControl:GetKey() .. "]"
 					listening = false
 					rebindCon:Disconnect()
 					rebindEndCon:Disconnect()
@@ -657,7 +740,6 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 		end)
 	end
 
-	local isOn = defaultState or false
 	local control = {
 		frame = frame,
 		SetState = function(self, val)
@@ -671,24 +753,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 		Toggle = function(self)
 			self:SetState(not isOn)
 		end,
-		BindKey = function(self, key)
-			if keybindControl then
-				keybindControl:SetKey(key)
-				updateKeybindBadge(key)
-			end
-		end,
-		UnbindKey = function(self)
-			if keybindBtn then
-				keybindBtn.Visible = false
-			end
-		end,
 	}
-
-	if keybind then
-		keybindControl = ChipGui:RegisterKeybind(label, keybind, "toggle", function()
-			control:Toggle()
-		end)
-	end
 
 	clickArea.MouseButton1Click:Connect(function()
 		control:Toggle()
@@ -696,7 +761,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 
 	local function updateCheckMark()
 		if isOn then
-			checkMark.Text = "+"  -- Simple character instead of emoji.
+			checkMark.Text = "+"
 		else
 			checkMark.Text = ""
 		end
@@ -898,7 +963,7 @@ local function createSlider(parent, label, min, max, defaultValue, onChange)
 end
 
 --- Create a button UI element.
-local function createButton(parent, text, callback, keybind)
+local function createButton(parent, text, callback, keybind, androidCtx, androidId)
 	local frame = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
@@ -933,7 +998,32 @@ local function createButton(parent, text, callback, keybind)
 
 	local control = { frame = frame, button = btn }
 
-	if keybind then
+	if state.isAndroid and androidCtx and androidId then
+		local floatEnabled = ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+		local floatToggle = create("Frame", {
+			Size = UDim2.new(0, 20, 0, 20),
+			Position = UDim2.new(1, -6, 0.5, -10),
+			AnchorPoint = Vector2.new(1, 0.5),
+			BackgroundColor3 = floatEnabled and theme.accent or theme.checkboxOff,
+			BorderSizePixel = 0,
+		}, {
+			corner(floatToggle, 4),
+		})
+		floatToggle.Parent = frame
+
+		local floatBtn = create("TextButton", {
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Text = "",
+		})
+		floatBtn.Parent = floatToggle
+
+		floatBtn.MouseButton1Click:Connect(function()
+			local newState = not ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+			ChipGui:SetElementFloatingEnabled(androidCtx, androidId, newState)
+			floatToggle.BackgroundColor3 = newState and theme.accent or theme.checkboxOff
+		end)
+	elseif keybind then
 		local keybindControl = ChipGui:RegisterKeybind(text, keybind, "press", function(pressed)
 			if pressed then
 				callback()
@@ -1101,7 +1191,7 @@ local function createList(parent)
 			callback = keybind
 			keybind = nil
 		end
-		return createToggle(frame, label, false, callback, keybind)
+		return createToggle(frame, label, false, callback, keybind, nil, nil)
 	end
 
 	--- Add a label to this list.
@@ -1120,7 +1210,7 @@ local function createList(parent)
 			callback = keybind
 			keybind = nil
 		end
-		return createButton(frame, text, callback, keybind)
+		return createButton(frame, text, callback, keybind, nil, nil)
 	end
 
 	--- Add a custom frame to the list.
@@ -1227,12 +1317,12 @@ function ChipGui:NewMenu(name)
 
 	state.menuObjects[name] = menuObj
 
-	function menuObj:AddToggle(label, keybind, callback)
+	function menuObj:AddToggle(label, keybind, callback, androidCtx, androidId)
 		if type(keybind) == "function" then
 			callback = keybind
 			keybind = nil
 		end
-		return createToggle(contentFrame, label, false, callback, keybind)
+		return createToggle(contentFrame, label, false, callback, keybind, androidCtx, androidId)
 	end
 
 	function menuObj:AddSlider(label, min, max, default, callback)
@@ -1255,12 +1345,12 @@ function ChipGui:NewMenu(name)
 		return createSectionHeader(contentFrame, text)
 	end
 
-	function menuObj:AddButton(text, keybind, callback)
+	function menuObj:AddButton(text, keybind, callback, androidCtx, androidId)
 		if type(keybind) == "function" then
 			callback = keybind
 			keybind = nil
 		end
-		return createButton(contentFrame, text, callback, keybind)
+		return createButton(contentFrame, text, callback, keybind, androidCtx, androidId)
 	end
 
 	function menuObj:GetName()
@@ -1627,15 +1717,9 @@ function ChipGui:SetupSettingsMenu()
 	refreshKeybindList()
 
 	settingsMenu:AddSectionHeader("Floating Touch Buttons")
-	settingsMenu:AddLabel("Create per-toggle floating buttons for touch input.")
+	settingsMenu:AddLabel("Toggle the floating button dot next to each element to show/hide its floating button.")
 	settingsMenu:AddToggle("Show Floating Buttons", nil, function(enabled)
-		if enabled then
-			ChipGui:FlushAndroidButtonQueue()
-			ChipGui:SetKeybindBadgesVisible(false)
-		else
-			ChipGui:RemoveAllFloatingButtons()
-			ChipGui:SetKeybindBadgesVisible(true)
-		end
+		ChipGui:SetGlobalFloatingEnabled(enabled)
 	end)
 
 	settingsMenu:AddSectionHeader("About")

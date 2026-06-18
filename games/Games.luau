@@ -68,32 +68,26 @@ function Games:CreateModule(gameName, contextFile)
 	--- @param label string - display text
 	--- @param key string|nil - optional default keybind
 	--- @param callback function(enabled)
-	--- @param showFloating boolean|nil - create an Android floating button for this toggle
 	--- @return table - toggle control object
-	function module:AddToggle(label, key, callback, showFloating)
+	function module:AddToggle(label, key, callback)
 		if type(key) == "function" then
-			showFloating = callback
 			callback = key
 			key = nil
 		end
-		local toggle = menu:AddToggle(label, key, callback)
+		local btnId = label:gsub("%s+", "_")
+		local toggle = menu:AddToggle(label, key, callback, context, btnId)
 
-		if showFloating then
-			local btnLabel = label:sub(1, 4)
-			ChipGui:QueueAndroidButton(
-				context,
-				label:gsub("%s+", "_"),
-				btnLabel,
-				50 + (#Games.Types * 70),
-				100,
-				function()
-					toggle:Toggle()
-				end,
-				function()
-					return toggle:GetState()
-				end
-			)
-		end
+		local btnLabel = label:sub(1, 4)
+		ChipGui:QueueAndroidButton(
+			context, btnId, btnLabel,
+			50 + (#Games.Types * 70), 100,
+			function()
+				toggle:Toggle()
+			end,
+			function()
+				return toggle:GetState()
+			end
+		)
 
 		return toggle
 	end
@@ -113,30 +107,24 @@ function Games:CreateModule(gameName, contextFile)
 	--- @param label string - display text
 	--- @param keybind string|nil - optional keybind
 	--- @param callback function()
-	--- @param showFloating boolean|nil - create an Android floating button for this button
 	--- @return table - button control object
-	function module:AddButton(label, keybind, callback, showFloating)
+	function module:AddButton(label, keybind, callback)
 		if type(keybind) == "function" then
-			showFloating = callback
 			callback = keybind
 			keybind = nil
 		end
-		local btn = menu:AddButton(label, keybind, callback)
+		local btnId = label:gsub("%s+", "_")
+		local btn = menu:AddButton(label, keybind, callback, context, btnId)
 
-		if showFloating then
-			local btnLabel = label:sub(1, 4)
-			ChipGui:QueueAndroidButton(
-				context,
-				label:gsub("%s+", "_"),
-				btnLabel,
-				50 + (#Games.Types * 70),
-				100,
-				function()
-					callback()
-				end,
-				nil
-			)
-		end
+		local btnLabel = label:sub(1, 4)
+		ChipGui:QueueAndroidButton(
+			context, btnId, btnLabel,
+			50 + (#Games.Types * 70), 100,
+			function()
+				callback()
+			end,
+			nil
+		)
 
 		return btn
 	end
