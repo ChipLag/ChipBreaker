@@ -8,6 +8,7 @@ local CoreGui = game:GetService("CoreGui")
 local VERSION = "1.0.0"
 local KEYBIND_FILE = "chipbreaker_keybinds.json"
 local ANDROID_BUTTON_FILE = "chipbreaker_android_buttons.json"
+local FLOATING_ENABLED_FILE = "chipbreaker_floating_settings.json"
 local DRAG_THRESHOLD = 15  -- pixels before Android button registers as drag
 
 local theme = {
@@ -214,6 +215,20 @@ function ChipGui:GetButtonPosition(contextId, buttonId)
 	return nil
 end
 
+--- Load per-element floating enabled settings from disk.
+function ChipGui:LoadFloatingSettings()
+	local data = safeRead(FLOATING_ENABLED_FILE)
+	if type(data) == "table" then
+		return data
+	end
+	return {}
+end
+
+--- Save per-element floating enabled settings to disk.
+function ChipGui:SaveFloatingSettings()
+	safeWrite(FLOATING_ENABLED_FILE, state.floatingEnabled)
+end
+
 --- Set the current keybind context (call before creating elements with keybinds).
 --- This allows each loaded script to have its own keybind namespace.
 function ChipGui:SetContext(contextId)
@@ -351,7 +366,7 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 
 	local btnFrame = create("Frame", {
 		Name = "AndroidBtn_" .. buttonId,
-		Size = UDim2.new(0, 0, 0, 44),
+		Size = UDim2.new(0, 0, 0, 36),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Position = UDim2.new(0, posX, 0, posY),
 		BackgroundColor3 = theme.card,
@@ -362,7 +377,7 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 		stroke(btnFrame, theme.accent, 1),
 	})
 	local sizeConstraint = Instance.new("UISizeConstraint")
-	sizeConstraint.MinSize = Vector2.new(90, 44)
+	sizeConstraint.MinSize = Vector2.new(70, 36)
 	sizeConstraint.Parent = btnFrame
 	btnFrame.Parent = state.screenGui
 
@@ -374,18 +389,19 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 		Text = label,
 		Font = Enum.Font.GothamSemibold,
 		TextSize = 16,
+		TextScaled = true,
 		TextColor3 = theme.text,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 	btnLabel.Parent = btnFrame
 
 	local indicator = create("Frame", {
-		Size = UDim2.new(0, 10, 0, 10),
-		Position = UDim2.new(1, -16, 0, 17),
+		Size = UDim2.new(0, 8, 0, 8),
+		Position = UDim2.new(1, -14, 0, 14),
 		BackgroundColor3 = theme.checkboxOff,
 		BorderSizePixel = 0,
 	}, {
-		corner(indicator, 5),
+		corner(indicator, 4),
 	})
 	indicator.Parent = btnFrame
 
@@ -394,7 +410,8 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 	local dragStart, frameStart
 
 	local touchBegan = btnFrame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
 			moved = false
 			dragStart = input.Position
@@ -403,7 +420,9 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 	end)
 
 	local touchMoved = btnFrame.InputChanged:Connect(function(input)
-		if not dragging or input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 		local delta = (input.Position - dragStart).Magnitude
 		if delta > DRAG_THRESHOLD then
 			moved = true
@@ -416,7 +435,8 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 	end)
 
 	local touchEnded = btnFrame.InputEnded:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.Touch then return end
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 		dragging = false
 		if not moved then
 			onClick()
@@ -519,6 +539,7 @@ end
 function ChipGui:SetElementFloatingEnabled(context, id, enabled)
 	local key = context .. "_" .. id
 	state.floatingEnabled[key] = enabled
+	self:SaveFloatingSettings()
 	if state.globalFloatingEnabled then
 		if enabled then
 			self:CreateSingleFloatingButton(context, id)
@@ -642,9 +663,24 @@ local function createToggle(parent, label, defaultState, onChange, keybind, andr
 	-- Floating toggle (Android) or keybind badge (desktop)
 	if state.isAndroid and androidCtx and androidId then
 		local floatEnabled = ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+		if keybind then
+			local keyLabel = create("TextLabel", {
+				Size = UDim2.new(0, 0, 0, 16),
+				Position = UDim2.new(1, -28, 0.5, 0),
+				AnchorPoint = Vector2.new(1, 0.5),
+				BackgroundTransparency = 1,
+				Text = "[" .. keybind .. "]",
+				Font = Enum.Font.GothamSemibold,
+				TextSize = 12,
+				TextColor3 = theme.textDim,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				AutomaticSize = Enum.AutomaticSize.X,
+			})
+			keyLabel.Parent = frame
+		end
 		local floatToggle = create("Frame", {
-			Size = UDim2.new(0, 20, 0, 20),
-			Position = UDim2.new(1, -6, 0.5, -10),
+			Size = UDim2.new(0, 16, 0, 16),
+			Position = UDim2.new(1, -6, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
 			BackgroundColor3 = floatEnabled and theme.accent or theme.checkboxOff,
 			BorderSizePixel = 0,
@@ -1000,9 +1036,24 @@ local function createButton(parent, text, callback, keybind, androidCtx, android
 
 	if state.isAndroid and androidCtx and androidId then
 		local floatEnabled = ChipGui:IsElementFloatingEnabled(androidCtx, androidId)
+		if keybind then
+			local keyLabel = create("TextLabel", {
+				Size = UDim2.new(0, 0, 0, 16),
+				Position = UDim2.new(1, -28, 0.5, 0),
+				AnchorPoint = Vector2.new(1, 0.5),
+				BackgroundTransparency = 1,
+				Text = "[" .. keybind .. "]",
+				Font = Enum.Font.GothamSemibold,
+				TextSize = 12,
+				TextColor3 = theme.textDim,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				AutomaticSize = Enum.AutomaticSize.X,
+			})
+			keyLabel.Parent = frame
+		end
 		local floatToggle = create("Frame", {
-			Size = UDim2.new(0, 20, 0, 20),
-			Position = UDim2.new(1, -6, 0.5, -10),
+			Size = UDim2.new(0, 16, 0, 16),
+			Position = UDim2.new(1, -6, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
 			BackgroundColor3 = floatEnabled and theme.accent or theme.checkboxOff,
 			BorderSizePixel = 0,
@@ -1568,6 +1619,11 @@ function ChipGui:ShowWindow()
 	state.screenGui = screenGui
 	state.initialized = true
 
+	local savedFloating = self:LoadFloatingSettings()
+	for k, v in pairs(savedFloating) do
+		state.floatingEnabled[k] = v
+	end
+
 	self:NewMenu("Home")
 	self:NewMenu("Globals")
 	self:NewMenu("Scripts")
@@ -1582,7 +1638,6 @@ function ChipGui:ShowWindow()
 
 	if state.isAndroid then
 		self:CreateToggleButton()
-		self:SetKeybindBadgesVisible(false)
 	end
 
 	state.currentContext = "_chipbreaker"
