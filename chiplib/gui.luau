@@ -389,7 +389,6 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 		Text = label,
 		Font = Enum.Font.GothamSemibold,
 		TextSize = 16,
-		TextScaled = true,
 		TextColor3 = theme.text,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
