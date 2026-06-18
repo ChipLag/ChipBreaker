@@ -328,6 +328,24 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 	local posX = saved and saved.X or defaultX
 	local posY = saved and saved.Y or defaultY
 
+	-- Check for duplicate before creating
+	local uid = contextId .. "_" .. buttonId
+	for _, existing in ipairs(state.androidButtons) do
+		if existing.uid == uid then
+			return existing
+		end
+	end
+
+	-- Use hash-based Y offset for unsaved positions so buttons don't stack
+	if not saved then
+		local hash = 0
+		local str = uid
+		for i = 1, #str do
+			hash = hash + string.byte(str, i)
+		end
+		posY = 100 + (hash % 500)
+	end
+
 	local btnFrame = create("Frame", {
 		Name = "AndroidBtn_" .. buttonId,
 		Size = UDim2.new(0, 0, 0, 44),
@@ -340,6 +358,9 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 		corner(btnFrame, 10),
 		stroke(btnFrame, theme.accent, 1),
 	})
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MinSize = Vector2.new(60, 44)
+	sizeConstraint.Parent = btnFrame
 	btnFrame.Parent = state.screenGui
 
 	local btnLabel = create("TextLabel", {
@@ -406,6 +427,7 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 	end)
 
 	local btnObj = {
+		uid = uid,
 		contextId = contextId,
 		frame = btnFrame,
 		label = btnLabel,
@@ -1470,6 +1492,7 @@ function ChipGui:ShowWindow()
 
 	if state.isAndroid then
 		self:CreateToggleButton()
+		self:SetKeybindBadgesVisible(false)
 	end
 
 	state.currentContext = "_chipbreaker"

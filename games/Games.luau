@@ -68,28 +68,32 @@ function Games:CreateModule(gameName, contextFile)
 	--- @param label string - display text
 	--- @param key string|nil - optional default keybind
 	--- @param callback function(enabled)
+	--- @param showFloating boolean|nil - create an Android floating button for this toggle
 	--- @return table - toggle control object
-	function module:AddToggle(label, key, callback)
+	function module:AddToggle(label, key, callback, showFloating)
 		if type(key) == "function" then
+			showFloating = callback
 			callback = key
 			key = nil
 		end
 		local toggle = menu:AddToggle(label, key, callback)
 
-		local btnLabel = label:sub(1, 4)
-		ChipGui:QueueAndroidButton(
-			context,
-			label:gsub("%s+", "_"),
-			btnLabel,
-			50 + (#Games.Types * 70),
-			100,
-			function()
-				toggle:Toggle()
-			end,
-			function()
-				return toggle:GetState()
-			end
-		)
+		if showFloating then
+			local btnLabel = label:sub(1, 4)
+			ChipGui:QueueAndroidButton(
+				context,
+				label:gsub("%s+", "_"),
+				btnLabel,
+				50 + (#Games.Types * 70),
+				100,
+				function()
+					toggle:Toggle()
+				end,
+				function()
+					return toggle:GetState()
+				end
+			)
+		end
 
 		return toggle
 	end
@@ -109,13 +113,32 @@ function Games:CreateModule(gameName, contextFile)
 	--- @param label string - display text
 	--- @param keybind string|nil - optional keybind
 	--- @param callback function()
+	--- @param showFloating boolean|nil - create an Android floating button for this button
 	--- @return table - button control object
-	function module:AddButton(label, keybind, callback)
+	function module:AddButton(label, keybind, callback, showFloating)
 		if type(keybind) == "function" then
+			showFloating = callback
 			callback = keybind
 			keybind = nil
 		end
-		return menu:AddButton(label, keybind, callback)
+		local btn = menu:AddButton(label, keybind, callback)
+
+		if showFloating then
+			local btnLabel = label:sub(1, 4)
+			ChipGui:QueueAndroidButton(
+				context,
+				label:gsub("%s+", "_"),
+				btnLabel,
+				50 + (#Games.Types * 70),
+				100,
+				function()
+					callback()
+				end,
+				nil
+			)
+		end
+
+		return btn
 	end
 
 	--- Add a label to this game's menu.
