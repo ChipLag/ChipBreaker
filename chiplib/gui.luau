@@ -1591,17 +1591,15 @@ function ChipGui:SetupSettingsMenu()
 
 	refreshKeybindList()
 
-	if state.isAndroid then
-		settingsMenu:AddSectionHeader("Floating Touch Buttons")
-		settingsMenu:AddLabel("Create per-toggle floating buttons for touch input.")
-		settingsMenu:AddToggle("Show Floating Buttons", nil, function(enabled)
-			if enabled then
-				ChipGui:FlushAndroidButtonQueue()
-			else
-				ChipGui:RemoveAllFloatingButtons()
-			end
-		end)
-	end
+	settingsMenu:AddSectionHeader("Floating Touch Buttons")
+	settingsMenu:AddLabel("Create per-toggle floating buttons for touch input.")
+	settingsMenu:AddToggle("Show Floating Buttons", nil, function(enabled)
+		if enabled then
+			ChipGui:FlushAndroidButtonQueue()
+		else
+			ChipGui:RemoveAllFloatingButtons()
+		end
+	end)
 
 	settingsMenu:AddSectionHeader("About")
 	settingsMenu:AddLabel("ChipBreaker v" .. VERSION)

@@ -4,7 +4,8 @@ local GITHUB_BASE = "https://raw.githubusercontent.com/ChipLag/ChipBreaker/main/
 --- Each module is loaded via loadstring and executed in a new closure,
 --- so state is shared through the _G.chipbreaker table.
 local function loadmodule(path)
-	local url = GITHUB_BASE .. path
+	local cacheBuster = "?t=" .. string.gsub(tostring(tick()), "%.", "")
+	local url = GITHUB_BASE .. path .. cacheBuster
 	local source = game:HttpGet(url)
 	return loadstring(source)()
 end

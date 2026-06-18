@@ -76,10 +76,11 @@ function Games:CreateModule(gameName, contextFile)
 		end
 		local toggle = menu:AddToggle(label, key, callback)
 
+		local btnLabel = key and ("[" .. key .. "]") or label:sub(1, 4)
 		ChipGui:QueueAndroidButton(
 			context,
 			label:gsub("%s+", "_"),
-			label:sub(1, 3),
+			btnLabel,
 			50 + (#Games.Types * 70),
 			100,
 			function()
