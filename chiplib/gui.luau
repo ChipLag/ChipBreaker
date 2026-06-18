@@ -39,6 +39,7 @@ local state = {
 	screenGui         = nil,
 	menus             = {},         -- ordered list of menu names
 	menuFrames        = {},         -- menuName -> frame with elements
+	menuObjects       = {},         -- menuName -> menu object
 	activeMenu        = nil,
 	sidebarButtons    = {},         -- menuName -> sidebar button
 	currentContext    = "unknown",  -- current keybind context (set by loaded scripts)
@@ -1047,7 +1048,7 @@ function ChipGui:NewMenu(name)
 	for _, m in ipairs(state.menus) do
 		if m == name then
 			warn("ChipBreaker: Menu '" .. name .. "' already exists.")
-			return state.menuFrames[name]
+			return state.menuObjects[name]
 		end
 	end
 
@@ -1117,6 +1118,8 @@ function ChipGui:NewMenu(name)
 	end
 
 	local menuObj = {}
+
+	state.menuObjects[name] = menuObj
 
 	function menuObj:AddToggle(label, keybind, callback)
 		if type(keybind) == "function" then
