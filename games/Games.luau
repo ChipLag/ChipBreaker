@@ -76,7 +76,7 @@ function Games:CreateModule(gameName, contextFile)
 		end
 		local toggle = menu:AddToggle(label, key, callback)
 
-		local btnLabel = key and ("[" .. key .. "]") or label:sub(1, 4)
+		local btnLabel = label:sub(1, 4)
 		ChipGui:QueueAndroidButton(
 			context,
 			label:gsub("%s+", "_"),
@@ -107,10 +107,15 @@ function Games:CreateModule(gameName, contextFile)
 
 	--- Add a button to this game's menu.
 	--- @param label string - display text
+	--- @param keybind string|nil - optional keybind
 	--- @param callback function()
 	--- @return table - button control object
-	function module:AddButton(label, callback)
-		return menu:AddButton(label, callback)
+	function module:AddButton(label, keybind, callback)
+		if type(keybind) == "function" then
+			callback = keybind
+			keybind = nil
+		end
+		return menu:AddButton(label, keybind, callback)
 	end
 
 	--- Add a label to this game's menu.

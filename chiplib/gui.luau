@@ -46,6 +46,7 @@ local state = {
 	keybindContexts   = {},         -- contextId -> { bindings }
 	androidButtons    = {},         -- list of android button objects
 	androidButtonQueue = {},        -- queued button descriptions
+	keybindBadges     = {},         -- {badge, context} for toggle visibility
 	isAndroid         = false,
 	initialized       = false,
 	visible           = true,
@@ -329,36 +330,38 @@ function ChipGui:CreateAndroidButton(contextId, buttonId, label, defaultX, defau
 
 	local btnFrame = create("Frame", {
 		Name = "AndroidBtn_" .. buttonId,
-		Size = UDim2.new(0, 60, 0, 36),
+		Size = UDim2.new(0, 0, 0, 44),
+		AutomaticSize = Enum.AutomaticSize.X,
 		Position = UDim2.new(0, posX, 0, posY),
 		BackgroundColor3 = theme.card,
 		BorderSizePixel = 0,
 		ZIndex = 10,
 	}, {
-		corner(btnFrame, 8),
+		corner(btnFrame, 10),
 		stroke(btnFrame, theme.accent, 1),
 	})
 	btnFrame.Parent = state.screenGui
 
 	local btnLabel = create("TextLabel", {
-		Size = UDim2.new(1, -8, 1, 0),
-		Position = UDim2.new(0, 4, 0, 0),
+		Size = UDim2.new(0, 0, 1, 0),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Position = UDim2.new(0, 8, 0, 0),
 		BackgroundTransparency = 1,
 		Text = label,
 		Font = Enum.Font.GothamSemibold,
-		TextSize = 12,
+		TextSize = 16,
 		TextColor3 = theme.text,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 	btnLabel.Parent = btnFrame
 
 	local indicator = create("Frame", {
-		Size = UDim2.new(0, 8, 0, 8),
-		Position = UDim2.new(1, -12, 0, 14),
+		Size = UDim2.new(0, 10, 0, 10),
+		Position = UDim2.new(1, -16, 0, 17),
 		BackgroundColor3 = theme.checkboxOff,
 		BorderSizePixel = 0,
 	}, {
-		corner(indicator, 4),
+		corner(indicator, 5),
 	})
 	indicator.Parent = btnFrame
 
@@ -485,6 +488,13 @@ function ChipGui:RemoveAllFloatingButtons()
 	end
 end
 
+--- Show or hide all keybind badges on toggles/buttons in the GUI.
+function ChipGui:SetKeybindBadgesVisible(visible)
+	for _, entry in ipairs(state.keybindBadges) do
+		entry.badge.Visible = visible
+	end
+end
+
 --- Create a toggle/checkbox UI element.
 --- @param parent instance - parent frame
 --- @param label string - display text
@@ -571,6 +581,7 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 			corner(keybindBtn, 4),
 		})
 		keybindBtn.Parent = frame
+		table.insert(state.keybindBadges, { badge = keybindBtn })
 
 		local badgePad = Instance.new("UIPadding")
 		badgePad.PaddingLeft = UDim.new(0, 8)
@@ -923,6 +934,7 @@ local function createButton(parent, text, callback, keybind)
 			corner(badge, 4),
 		})
 		badge.Parent = frame
+		table.insert(state.keybindBadges, { badge = badge })
 
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 8)
@@ -1596,8 +1608,10 @@ function ChipGui:SetupSettingsMenu()
 	settingsMenu:AddToggle("Show Floating Buttons", nil, function(enabled)
 		if enabled then
 			ChipGui:FlushAndroidButtonQueue()
+			ChipGui:SetKeybindBadgesVisible(false)
 		else
 			ChipGui:RemoveAllFloatingButtons()
+			ChipGui:SetKeybindBadgesVisible(true)
 		end
 	end)
 
