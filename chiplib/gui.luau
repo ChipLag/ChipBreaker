@@ -45,6 +45,7 @@ local state = {
 	currentContext    = "unknown",  -- current keybind context (set by loaded scripts)
 	keybindContexts   = {},         -- contextId -> { bindings }
 	androidButtons    = {},         -- list of android button objects
+	androidButtonQueue = {},        -- queued button descriptions
 	isAndroid         = false,
 	initialized       = false,
 	visible           = true,
@@ -274,7 +275,7 @@ function ChipGui:RegisterKeybind(label, defaultKey, bindType, callback)
 	end
 	function control:SetKey(newKey)
 		bind.currentKey = newKey
-		self:SaveAllKeybinds()
+		ChipGui:SaveAllKeybinds()
 	end
 	function control:GetLabel()
 		return bind.label
@@ -444,6 +445,40 @@ function ChipGui:RemoveContextButtons(contextId)
 	for i = #state.androidButtons, 1, -1 do
 		local btn = state.androidButtons[i]
 		if btn.contextId == contextId then
+			btn:Destroy()
+			table.remove(state.androidButtons, i)
+		end
+	end
+end
+
+--- Queue an Android button description (created later when floating buttons are enabled).
+function ChipGui:QueueAndroidButton(context, id, label, x, y, onClick, onGetState)
+	table.insert(state.androidButtonQueue, {
+		context = context,
+		id = id,
+		label = label,
+		x = x,
+		y = y,
+		onClick = onClick,
+		onGetState = onGetState,
+	})
+end
+
+--- Create all queued Android buttons.
+function ChipGui:FlushAndroidButtonQueue()
+	for _, btn in ipairs(state.androidButtonQueue) do
+		self:CreateAndroidButton(
+			btn.context, btn.id, btn.label,
+			btn.x, btn.y, btn.onClick, btn.onGetState
+		)
+	end
+end
+
+--- Destroy all created floating buttons (preserves queue descriptions for re-creation).
+function ChipGui:RemoveAllFloatingButtons()
+	for i = #state.androidButtons, 1, -1 do
+		local btn = state.androidButtons[i]
+		if btn.contextId ~= "_chipbreaker" then
 			btn:Destroy()
 			table.remove(state.androidButtons, i)
 		end
@@ -1557,8 +1592,15 @@ function ChipGui:SetupSettingsMenu()
 	refreshKeybindList()
 
 	if state.isAndroid then
-		settingsMenu:AddSectionHeader("Android Buttons")
-		settingsMenu:AddLabel("Floating buttons are active for touch input.")
+		settingsMenu:AddSectionHeader("Floating Touch Buttons")
+		settingsMenu:AddLabel("Create per-toggle floating buttons for touch input.")
+		settingsMenu:AddToggle("Show Floating Buttons", nil, function(enabled)
+			if enabled then
+				ChipGui:FlushAndroidButtonQueue()
+			else
+				ChipGui:RemoveAllFloatingButtons()
+			end
+		end)
 	end
 
 	settingsMenu:AddSectionHeader("About")

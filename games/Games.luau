@@ -76,28 +76,19 @@ function Games:CreateModule(gameName, contextFile)
 		end
 		local toggle = menu:AddToggle(label, key, callback)
 
-		if ChipGui.CreateAndroidButton then
-			local androidBtn = ChipGui:CreateAndroidButton(
-				context,
-				label:gsub("%s+", "_"),
-				label:sub(1, 3),
-				50 + (#Games.Types * 70),
-				100,
-				function()
-					toggle:Toggle()
-				end,
-				function()
-					return toggle:GetState()
-				end
-			)
-			if androidBtn then
-				local origSet = toggle.SetState
-				toggle.SetState = function(self, val)
-					origSet(self, val)
-					androidBtn:SetState(val)
-				end
+		ChipGui:QueueAndroidButton(
+			context,
+			label:gsub("%s+", "_"),
+			label:sub(1, 3),
+			50 + (#Games.Types * 70),
+			100,
+			function()
+				toggle:Toggle()
+			end,
+			function()
+				return toggle:GetState()
 			end
-		end
+		)
 
 		return toggle
 	end
