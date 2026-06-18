@@ -90,6 +90,6 @@ globalMenu:AddToggle("Noclip", "N", function(enabled)
 	setNoclip(enabled)
 end)
 
-globalMenu:AddToggle("Toggle UI", "Insert", function(enabled)
+globalMenu:AddToggle("Toggle UI", "RightControl", function(enabled)
 	ChipGui:Toggle()
 end)

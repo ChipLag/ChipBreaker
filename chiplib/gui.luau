@@ -521,13 +521,14 @@ local function createToggle(parent, label, defaultState, onChange, keybind)
 
 	if keybind then
 		keybindBtn = create("TextButton", {
-			Size = UDim2.new(0, 0, 0, 20),
-			Position = UDim2.new(1, -4, 0.5, -10),
+			Size = UDim2.new(0, 0, 0, 24),
+			Position = UDim2.new(1, -6, 0.5, 0),
+			AnchorPoint = Vector2.new(1, 0.5),
 			BackgroundColor3 = theme.keybindBg,
 			AutoButtonColor = false,
 			Text = "[" .. keybind .. "]",
 			Font = Enum.Font.GothamSemibold,
-			TextSize = 11,
+			TextSize = 12,
 			TextColor3 = theme.textDim,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			AutomaticSize = Enum.AutomaticSize.X,
@@ -829,7 +830,7 @@ local function createSlider(parent, label, min, max, defaultValue, onChange)
 end
 
 --- Create a button UI element.
-local function createButton(parent, text, callback)
+local function createButton(parent, text, callback, keybind)
 	local frame = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
@@ -862,7 +863,39 @@ local function createButton(parent, text, callback)
 		callback()
 	end)
 
-	return { frame = frame, button = btn }
+	local control = { frame = frame, button = btn }
+
+	if keybind then
+		local keybindControl = ChipGui:RegisterKeybind(text, keybind, "press", function(pressed)
+			if pressed then
+				callback()
+			end
+		end)
+
+		local badge = create("TextButton", {
+			Size = UDim2.new(0, 0, 0, 24),
+			Position = UDim2.new(1, -6, 0.5, 0),
+			AnchorPoint = Vector2.new(1, 0.5),
+			BackgroundColor3 = theme.keybindBg,
+			AutoButtonColor = false,
+			Text = "[" .. keybind .. "]",
+			Font = Enum.Font.GothamSemibold,
+			TextSize = 12,
+			TextColor3 = theme.textDim,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			AutomaticSize = Enum.AutomaticSize.X,
+		}, {
+			corner(badge, 4),
+		})
+		badge.Parent = frame
+
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.Parent = badge
+	end
+
+	return control
 end
 
 --- Create a label UI element.
@@ -1013,8 +1046,12 @@ local function createList(parent)
 	end
 
 	--- Add a button to this list.
-	function listObj:AddButton(text, callback)
-		return createButton(frame, text, callback)
+	function listObj:AddButton(text, keybind, callback)
+		if type(keybind) == "function" then
+			callback = keybind
+			keybind = nil
+		end
+		return createButton(frame, text, callback, keybind)
 	end
 
 	--- Add a custom frame to the list.
@@ -1149,8 +1186,12 @@ function ChipGui:NewMenu(name)
 		return createSectionHeader(contentFrame, text)
 	end
 
-	function menuObj:AddButton(text, callback)
-		return createButton(contentFrame, text, callback)
+	function menuObj:AddButton(text, keybind, callback)
+		if type(keybind) == "function" then
+			callback = keybind
+			keybind = nil
+		end
+		return createButton(contentFrame, text, callback, keybind)
 	end
 
 	function menuObj:GetName()
@@ -1220,7 +1261,7 @@ function ChipGui:ShowWindow()
 		return
 	end
 
-	state.isAndroid = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	state.isAndroid = UserInputService.TouchEnabled
 
 	local screenGui = create("ScreenGui", {
 		Name = "ChipBreaker",
@@ -1384,6 +1425,11 @@ function ChipGui:ShowWindow()
 		self:CreateToggleButton()
 	end
 
+	state.currentContext = "_chipbreaker"
+	ChipGui:RegisterKeybind("Toggle GUI", "RightShift", "toggle", function()
+		self:Toggle()
+	end)
+
 	return window
 end
 
@@ -1451,13 +1497,14 @@ function ChipGui:SetupSettingsMenu()
 					labelEl.Parent = row
 
 					local keyBtn = create("TextButton", {
-						Size = UDim2.new(0, 0, 0, 22),
-						Position = UDim2.new(1, -6, 0.5, -11),
+						Size = UDim2.new(0, 0, 0, 24),
+						Position = UDim2.new(1, -6, 0.5, 0),
+						AnchorPoint = Vector2.new(1, 0.5),
 						BackgroundColor3 = theme.keybindBg,
 						AutoButtonColor = false,
 						Text = "[" .. bind.currentKey .. "]",
 						Font = Enum.Font.GothamSemibold,
-						TextSize = 11,
+						TextSize = 12,
 						TextColor3 = theme.textDim,
 						TextXAlignment = Enum.TextXAlignment.Center,
 						AutomaticSize = Enum.AutomaticSize.X,
